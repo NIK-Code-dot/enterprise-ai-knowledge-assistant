@@ -101,7 +101,10 @@ class RAGPipeline:
 
         if not context_parts:
             return {
-                "answer": "No readable content was found in the retrieved document sections.",
+                "answer": (
+                    "No readable content was found in the "
+                    "retrieved document sections."
+                ),
                 "sources": [],
             }
 
@@ -127,6 +130,19 @@ class RAGPipeline:
 
         try:
             if GROQ_API_KEY:
+                # Diagnostic log: model only, never the API key.
+                print(
+                    f"DEBUG: Active GROQ_MODEL = {GROQ_MODEL!r}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+                if not GROQ_MODEL:
+                    raise ValueError(
+                        "GROQ_MODEL is empty. Set a valid model "
+                        "in the deployment environment."
+                    )
+
                 response = requests.post(
                     GROQ_API_URL,
                     headers={
@@ -155,6 +171,12 @@ class RAGPipeline:
                 answer_text = response_data["choices"][0]["message"]["content"]
 
             else:
+                print(
+                    f"DEBUG: Using Ollama model = {OLLAMA_MODEL!r}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
                 response = requests.post(
                     OLLAMA_URL,
                     json={
@@ -179,7 +201,9 @@ class RAGPipeline:
                 answer_text = response_data["message"]["content"]
 
             if not isinstance(answer_text, str) or not answer_text.strip():
-                raise ValueError("The AI provider returned an empty answer.")
+                raise ValueError(
+                    "The AI provider returned an empty answer."
+                )
 
         except Exception as error:
             print(
@@ -190,9 +214,13 @@ class RAGPipeline:
                 flush=True,
             )
 
-            if isinstance(error, requests.HTTPError) and error.response is not None:
+            if (
+                isinstance(error, requests.HTTPError)
+                and error.response is not None
+            ):
                 print(
-                    f"Provider response: {error.response.text[:2000]}",
+                    f"Provider response: "
+                    f"{error.response.text[:2000]}",
                     file=sys.stderr,
                     flush=True,
                 )
@@ -245,4 +273,3 @@ if __name__ == "__main__":
             break
         except Exception as error:
             print(f"\nError: {error}\n")
-
