@@ -1,0 +1,12 @@
+streamlit
+fastapi
+uvicorn[standard]
+langchain
+langchain-community
+langchain-text-splitters
+langchain-ollama
+chromadb
+sentence-transformers
+pypdf
+python-docx
+python-dotenv
