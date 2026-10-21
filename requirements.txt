@@ -10,3 +10,4 @@ sentence-transformers
 pypdf
 python-docx
 python-dotenv
+fastembed
