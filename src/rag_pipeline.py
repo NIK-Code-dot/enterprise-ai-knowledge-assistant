@@ -29,11 +29,14 @@ OLLAMA_MODEL = os.getenv(
 
 class RAGPipeline:
     def __init__(self):
-        self.vector_store = VectorStore()
+        self.store = VectorStore()
+        # Keep compatibility with code that uses vector_store.
+        self.vector_store = self.store
 
     def answer(
         self,
         question: str,
+        top_k: int = 4,
         document_id: str | None = None,
     ) -> dict:
         question = question.strip()
@@ -44,19 +47,20 @@ class RAGPipeline:
                 "sources": [],
             }
 
-        # Retrieve relevant document chunks.
         try:
-            matches = self.vector_store.search(
-                question,
-                top_k=4,
+            matches = self.store.search(
+                query=question,
+                top_k=max(1, min(int(top_k), 10)),
                 document_id=document_id,
             )
         except Exception as error:
             print(
-                f"Document retrieval failed: {error}",
+                f"Document retrieval failed: "
+                f"{type(error).__name__}: {error}",
                 file=sys.stderr,
                 flush=True,
             )
+            traceback.print_exc(file=sys.stderr)
             raise RuntimeError(
                 f"Document retrieval failed: {error}"
             ) from error
@@ -71,7 +75,6 @@ class RAGPipeline:
                 "sources": [],
             }
 
-        # Build context and source references.
         context_parts = []
         sources = []
 
@@ -98,10 +101,7 @@ class RAGPipeline:
 
         if not context_parts:
             return {
-                "answer": (
-                    "No readable content was found in the retrieved "
-                    "document sections."
-                ),
+                "answer": "No readable content was found in the retrieved document sections.",
                 "sources": [],
             }
 
@@ -123,8 +123,8 @@ class RAGPipeline:
             "Answer clearly and accurately using the context above."
         )
 
-        # Use Groq in cloud deployment when an API key is configured.
-        # Otherwise, fall back to the local Ollama service.
+        provider = "Groq" if GROQ_API_KEY else "Ollama"
+
         try:
             if GROQ_API_KEY:
                 response = requests.post(
@@ -152,10 +152,7 @@ class RAGPipeline:
 
                 response.raise_for_status()
                 response_data = response.json()
-
-                answer_text = (
-                    response_data["choices"][0]["message"]["content"]
-                )
+                answer_text = response_data["choices"][0]["message"]["content"]
 
             else:
                 response = requests.post(
@@ -182,36 +179,25 @@ class RAGPipeline:
                 answer_text = response_data["message"]["content"]
 
             if not isinstance(answer_text, str) or not answer_text.strip():
-                raise ValueError(
-                    "The AI provider returned an empty answer."
-                )
+                raise ValueError("The AI provider returned an empty answer.")
 
         except Exception as error:
-            # Print the real exception in Render backend logs.
             print(
                 f"RAG answer generation failed "
-                f"(provider={'Groq' if GROQ_API_KEY else 'Ollama'}): "
+                f"(provider={provider}): "
                 f"{type(error).__name__}: {error}",
                 file=sys.stderr,
                 flush=True,
             )
 
-            if isinstance(error, requests.HTTPError):
-                # Log the provider's response body without logging
-                # request headers or the API key.
-                try:
-                    print(
-                        "Provider response: "
-                        f"{error.response.text[:2000]}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                except Exception:
-                    pass
+            if isinstance(error, requests.HTTPError) and error.response is not None:
+                print(
+                    f"Provider response: {error.response.text[:2000]}",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
             traceback.print_exc(file=sys.stderr)
-
-            provider = "Groq" if GROQ_API_KEY else "Ollama"
 
             raise RuntimeError(
                 f"Could not generate an answer with {provider}: "
@@ -259,3 +245,4 @@ if __name__ == "__main__":
             break
         except Exception as error:
             print(f"\nError: {error}\n")
+
