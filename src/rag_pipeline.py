@@ -94,6 +94,7 @@ class RAGPipeline:
             source_item = {
                 "source": source_name,
                 "page": page,
+                "text": chunk_text,
             }
 
             if source_item not in sources:
